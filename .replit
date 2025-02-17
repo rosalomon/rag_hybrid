@@ -1,0 +1,19 @@
+modules = ["python-3.12"]
+run = "start"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "start"]
+
+[workflows]
+runButton = "Run"
+
+[[workflows.workflow]]
+name = "Run"
+author = 38340391
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python query_data.py 'What are the starting rules?'"
