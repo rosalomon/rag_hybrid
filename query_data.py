@@ -45,15 +45,23 @@ def query_rag(query_text: str):
     print("📝 Generated prompt")
     print(prompt)
 
-    print("🤖 Connecting to LLM...")
-    model = OpenAI(
-        base_url="http://127.0.0.1:1234",  # LM Studio
-        api_key="not-needed",
-        temperature=0.7,
-        model="qwen2.5-7b-instruct-1m")
-    print("🚀 Sending request to LLM...")
-    response_text = model.invoke(prompt)
-    print("✅ Received response")
+    print("🤖 Connecting to LM Studio...")
+    try:
+        import httpx
+        model = OpenAI(
+            base_url="http://0.0.0.0:1234/v1",  # LM Studio
+            api_key="not-needed",
+            temperature=0.7,
+            model="qwen2.5-7b-instruct-1m",
+            http_client=httpx.Client(timeout=30.0)
+        )
+        print("🚀 Sending request to LLM...")
+        response_text = model.invoke(prompt)
+        print("✅ Received response")
+    except Exception as e:
+        print(f"❌ Error connecting to LM Studio: {str(e)}")
+        print("Please check if LM Studio is running and the model is loaded")
+        return "Error: Could not connect to LM Studio"
 
     sources = [doc.metadata.get("id", None) for doc, _score in results]
     formatted_response = f"Response: {response_text}\nSources: {sources}"
