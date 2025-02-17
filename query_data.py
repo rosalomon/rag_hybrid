@@ -30,21 +30,24 @@ def main():
 def query_rag(query_text: str):
     # Prepare the DB.
     embedding_function = get_embedding_function()
-    db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
+    db = Chroma(persist_directory=CHROMA_PATH,
+                embedding_function=embedding_function)
 
     # Search the DB.
     results = db.similarity_search_with_score(query_text, k=5)
 
-    context_text = "\n\n---\n\n".join([doc.page_content for doc, _score in results])
+    context_text = "\n\n---\n\n".join(
+        [doc.page_content for doc, _score in results])
     prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
     prompt = prompt_template.format(context=context_text, question=query_text)
     # print(prompt)
 
     model = OpenAI(
-        base_url="http://0.0.0.0:1234/v1",  # LM Studio
+        base_url="http://192.168.112.5:1234",  # LM Studio
         api_key="not-needed",
         temperature=0.7,
-        model="mistral"  # or whatever model you're running in LM Studio
+        model=
+        "qwen2.5-7b-instruct-1m"  # or whatever model you're running in LM Studio
     )
     response_text = model.invoke(prompt)
 
