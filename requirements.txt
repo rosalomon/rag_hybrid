@@ -7,3 +7,4 @@ langchain-community
 langchain-text-splitters
 openai
 langchain-openai
+langchain-chroma
