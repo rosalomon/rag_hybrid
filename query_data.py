@@ -41,9 +41,10 @@ def query_rag(query_text: str):
     # print(prompt)
 
     model = OpenAI(
-        base_url="http://localhost:1234/v1",  # LM Studio default port
+        base_url="http://0.0.0.0:1234/v1",  # LM Studio
         api_key="not-needed",
-        temperature=0.7
+        temperature=0.7,
+        model="mistral"  # or whatever model you're running in LM Studio
     )
     response_text = model.invoke(prompt)
 
