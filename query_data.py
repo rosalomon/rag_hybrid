@@ -41,7 +41,7 @@ def query_rag(query_text: str):
     # print(prompt)
 
     model = OpenAI(
-        base_url="http://0.0.0.0:1234/v1",
+        base_url="http://localhost:1234/v1",  # LM Studio default port
         api_key="not-needed",
         temperature=0.7
     )
