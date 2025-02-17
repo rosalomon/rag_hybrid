@@ -6,3 +6,4 @@ boto3
 langchain-community
 langchain-text-splitters
 openai
+langchain-openai
