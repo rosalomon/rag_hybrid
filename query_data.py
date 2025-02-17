@@ -49,7 +49,7 @@ def query_rag(query_text: str):
     try:
         import httpx
         model = OpenAI(
-            base_url="http://0.0.0.0:1234/v1",  # LM Studio
+            base_url="http://127.0.0.1:1234/v1",  # LM Studio
             api_key="not-needed",
             temperature=0.7,
             model="qwen2.5-7b-instruct-1m",
