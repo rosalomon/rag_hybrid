@@ -47,11 +47,10 @@ def query_rag(query_text: str):
 
     print("🤖 Connecting to LLM...")
     model = OpenAI(
-        base_url="http://192.168.112.5:1234",  # LM Studio
+        base_url="http://127.0.0.1:1234",  # LM Studio
         api_key="not-needed",
         temperature=0.7,
-        model="qwen2.5-7b-instruct-1m"
-    )
+        model="qwen2.5-7b-instruct-1m")
     print("🚀 Sending request to LLM...")
     response_text = model.invoke(prompt)
     print("✅ Received response")
