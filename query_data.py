@@ -1,5 +1,5 @@
 import argparse
-from langchain_chroma import Chroma
+from langchain_community.vectorstores import Chroma
 from langchain.prompts import ChatPromptTemplate
 from langchain_openai import OpenAI
 
@@ -56,15 +56,20 @@ def query_rag(query_text: str):
             http_client=httpx.Client(timeout=30.0)
         )
         print("🚀 Sending request to LLM...")
-        response_text = model.invoke(prompt)
+        response = model.invoke(prompt)
+        # Rensa bort eventuella system-tokens från svaret
+        response_text = response.strip().replace("<|im_start|>", "").replace("<|im_end|>", "")
+        if not response_text:
+            response_text = "Error: Received empty response from LLM"
         print("✅ Received response")
     except Exception as e:
         print(f"❌ Error connecting to LM Studio: {str(e)}")
         print("Please check if LM Studio is running and the model is loaded")
         return "Error: Could not connect to LM Studio"
 
-    sources = [doc.metadata.get("id", None) for doc, _score in results]
-    formatted_response = f"Response: {response_text}\nSources: {sources}"
+    sources = [doc.metadata.get("source", "Unknown") + f" (page {doc.metadata.get('page', '?')})" 
+              for doc, _score in results]
+    formatted_response = f"\nResponse: {response_text}\n\nSources:\n" + "\n".join(f"- {source}" for source in sources)
     print(formatted_response)
     return response_text
 
