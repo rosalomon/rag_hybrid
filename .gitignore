@@ -2,3 +2,5 @@
 .DS_Store
 backup
 chroma
+data
+.env

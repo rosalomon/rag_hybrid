@@ -1,5 +1,7 @@
 from query_data import query_rag
 from langchain_community.llms.ollama import Ollama
+from langchain_community.llms import OpenAI
+import httpx
 
 EVAL_PROMPT = """
 Expected Response: {expected_response}
@@ -29,7 +31,13 @@ def query_and_validate(question: str, expected_response: str):
         expected_response=expected_response, actual_response=response_text
     )
 
-    model = Ollama(model="mistral")
+    model = OpenAI(
+        base_url="http://localhost:1234/v1",
+        api_key="not-needed",
+        temperature=0,
+        model="meta-llama-3.1-8b-instruct"
+    )
+    
     evaluation_results_str = model.invoke(prompt)
     evaluation_results_str_cleaned = evaluation_results_str.strip().lower()
 
@@ -47,3 +55,10 @@ def query_and_validate(question: str, expected_response: str):
         raise ValueError(
             f"Invalid evaluation result. Cannot determine if 'true' or 'false'."
         )
+
+if __name__ == "__main__":
+    print("Kör Monopoly-test...")
+    test_monopoly_rules()
+    
+    print("\nKör Ticket to Ride-test...")
+    test_ticket_to_ride_rules()

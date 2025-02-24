@@ -1,6 +1,8 @@
-
+from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 import os
+
+load_dotenv()
 
 def get_embedding_function():
     openai_api_key = os.getenv("OPENAI_API_KEY")

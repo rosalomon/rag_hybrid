@@ -6,6 +6,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.schema.document import Document
 from get_embedding_function import get_embedding_function
 from langchain_community.vectorstores import Chroma
+import nltk
+from transformers import AutoTokenizer
 
 
 CHROMA_PATH = "chroma"
@@ -34,13 +36,48 @@ def load_documents():
 
 
 def split_documents(documents: list[Document]):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=80,
-        length_function=len,
-        is_separator_regex=False,
-    )
-    return text_splitter.split_documents(documents)
+    # Ladda tokenizer för att räkna tokens
+    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+    
+    # Initiera sentence splitter från nltk
+    nltk.download('punkt', quiet=True)
+    sentence_splitter = nltk.data.load()
+    
+    chunks = []
+    for doc in documents:
+        # Dela texten i meningar
+        sentences = sentence_splitter.tokenize(doc.page_content)
+        
+        current_chunk = []
+        current_length = 0
+        
+        for sentence in sentences:
+            sentence_length = len(sentence)
+            
+            # Om den aktuella chunken plus nya meningen skulle bli för stor
+            if current_length + sentence_length > 250 and current_length >= 150:
+                # Spara nuvarande chunk och börja en ny
+                chunk_text = ' '.join(current_chunk)
+                chunks.append(Document(
+                    page_content=chunk_text,
+                    metadata=doc.metadata
+                ))
+                current_chunk = [sentence]
+                current_length = sentence_length
+            else:
+                # Lägg till meningen i nuvarande chunk
+                current_chunk.append(sentence)
+                current_length += sentence_length
+        
+        # Hantera eventuell kvarvarande text
+        if current_chunk:
+            chunk_text = ' '.join(current_chunk)
+            chunks.append(Document(
+                page_content=chunk_text,
+                metadata=doc.metadata
+            ))
+    
+    return chunks
 
 
 def add_to_chroma(chunks: list[Document]):
