@@ -1,98 +1,115 @@
 import argparse
-from langchain_community.vectorstores import Chroma
-from langchain.prompts import ChatPromptTemplate
-from langchain_openai import OpenAI
+from database_manager import DatabaseManager
+from search_engine import SearchEngine
 from get_embedding_function import get_embedding_function
-from rank_bm25 import BM25Okapi
-import numpy as np
 
 CHROMA_PATH = "chroma"
+SYSTEM_PROMPT = """Du är en hjälpsam assistent som svarar på frågor om spelet Monopol baserat på given kontext.
 
-PROMPT_TEMPLATE = """
-Answer the question based only on the following context:
+VIKTIGT:
+1. Ge ETT tydligt svar baserat ENDAST på informationen i kontexten
+2. Om informationen inte finns i kontexten, svara endast: "Jag hittar ingen information om detta i kontexten"
+3. Undvik att:
+   - Gissa eller fylla i med egen kunskap
+   - Ge flera alternativa svar
+   - Svara på frågor som inte ställts
+4. Citera relevant text från kontexten när möjligt."""
 
+CHAT_PROMPT = """
+Kontext:
 {context}
 
----
+Historik:
+{history}
 
-Answer the question based on the above context: {question}
-"""
+Användare: {question}
+Assistent:"""
 
+def format_source(metadata):
+    """Formaterar källhänvisningen baserat på dokumenttyp"""
+    source = metadata.get('source', 'Unknown')
+    
+    if metadata.get('type') == 'structured_data':
+        sheet = metadata.get('sheet', '')
+        row_start = metadata.get('row_start', '')
+        row_end = metadata.get('row_end', '')
+        return f"- {source} (Sheet: {sheet}, Rader: {row_start}-{row_end})"
+    else:
+        # För PDF/text-dokument
+        page = metadata.get('page', '?')
+        # Konvertera page till int om det är en siffra
+        if isinstance(page, (int, float)):
+            return f"- {source} (sida {int(page)})"
+        return f"- {source} (sida {page})"
 
 def main():
-    # Create CLI.
-    parser = argparse.ArgumentParser()
-    parser.add_argument("query_text", type=str, help="The query text.")
-    args = parser.parse_args()
-    query_text = args.query_text
-    query_rag(query_text)
-
-
-def query_rag(query_text: str):
-    # Prepare the DB.
+    db_manager = DatabaseManager(CHROMA_PATH)
     embedding_function = get_embedding_function()
-    db = Chroma(persist_directory=CHROMA_PATH,
-                embedding_function=embedding_function)
-
-    print("\n=== 🔎 Sökning påbörjad ===")
-    print(f"Fråga: {query_text}\n")
+    search_engine = SearchEngine(
+        CHAT_PROMPT, 
+        embedding_function,
+        system_prompt=SYSTEM_PROMPT
+    )
     
-    # Hämta alla dokument från databasen för BM25-sökning.
-    print("1. 📚 Hämtar dokument från databasen...")
-    data = db.get()
-    documents = data["documents"]  # Textinnehållet
-    metadatas = data["metadatas"]  # Metadata för varje dokument
-    print(f"   ✓ Hittade {len(documents)} dokument\n")
-
-    # Bygg BM25-index baserat på dokumentinnehållet
-    tokenized_corpus = [doc.split() for doc in documents]
-    bm25 = BM25Okapi(tokenized_corpus)
-    query_tokens = query_text.split()
-    scores = bm25.get_scores(query_tokens)
-
-    # Hämta de 12 bästa resultaten.
-    top_k = 12
-    top_indices = np.argsort(scores)[::-1][:top_k]
-    results = [({"page_content": documents[i], "metadata": metadatas[i]}, scores[i]) 
-               for i in top_indices if scores[i] > 0]
-    print(f"2. 🔍 BM25-sökning klar")
-    print(f"   ✓ Hittade {len(results)} relevanta dokument\n")
-
-    context_text = "\n\n---\n\n".join(
-        [doc["page_content"] for doc, _score in results])
-    prompt_template = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-    prompt = prompt_template.format(context=context_text, question=query_text)
-    print("3. 🤖 Genererar svar från AI-modell...")
+    # Spara chat historik
+    chat_history = []
     
-    try:
-        import httpx
-        model = OpenAI(
-            base_url="http://127.0.0.1:1234/v1",  # LM Studio
-            api_key="not-needed",
-            temperature=0.7,
-            model="meta-llama-3.1-8b-instruct",
-            http_client=httpx.Client(timeout=30.0)
+    print("\n=== 🤖 RAG Chat ===")
+    print("Skriv 'exit' för att avsluta\n")
+    
+    while True:
+        # Få input från användaren
+        user_input = input("\nFråga: ")
+        if user_input.lower() in ['exit', 'quit', 'avsluta']:
+            break
+            
+        # Sök efter relevanta dokument
+        data = db_manager.get_all_documents()
+        results = search_engine.search(user_input, data["documents"], data["metadatas"])
+        
+        # Skapa kontext från relevanta dokument
+        context_text = "\n\n---\n\n".join([doc["page_content"] for doc, _score in results])
+        
+        # Formatera chat historik
+        history_text = "\n".join([
+            f"Användare: {q}\nAssistent: {a}" 
+            for q, a in chat_history
+        ])
+        
+        # Generera svar
+        response_text = search_engine.generate_chat_response(
+            user_input, 
+            context_text,
+            history_text
         )
-        response = model.invoke(prompt)
-        response_text = response.strip().replace("<|im_start|>", "").replace("<|im_end|>", "")
-        if not response_text:
-            response_text = "Error: Received empty response from LLM"
-        print("   ✓ Svar mottaget\n")
-    except Exception as e:
-        print(f"\n❌ Fel vid anslutning till LM Studio: {str(e)}")
-        print("Kontrollera att LM Studio körs och att modellen är laddad")
-        return "Error: Could not connect to LM Studio"
-
-    sources = [f"- {doc['metadata'].get('source', 'Unknown')} (sida {doc['metadata'].get('page', '?'):.0f})" 
-              for doc, _score in results]
-    
-    print("\n=== ✨ RESULTAT ===")
-    print("\n📝 SVAR:")
-    print(response_text)
-    print("\n📚 KÄLLOR:")
-    print("\n".join(sources))
-    print("\n================")
-
+        
+        # Uppdatera historik
+        chat_history.append((user_input, response_text))
+        
+        # Visa källor - Uppdatera för att hantera (doc, score) tupler
+        sources = [format_source(doc[0]['metadata']) for doc in results]  # Notera doc[0] för att få dokumentet från tupeln
+        print("\n📚 KÄLLOR:")
+        print("\n".join(sorted(set(sources))))
+        
+        # Visa topp chunks
+        print("\n🔍 TOPP 3 CHUNKS:")
+        print("\nBM25 chunks:")
+        for i, (doc, score) in enumerate(results[:3], 1):
+            print(f"\n{i}. Score: {score:.3f}")
+            print("-" * 50)
+            print(doc["page_content"])
+            print("-" * 50)
+        
+        if len(results) > 3:
+            print("\nSimilarity chunks:")
+            for i, (doc, score) in enumerate(results[3:6], 1):
+                print(f"\n{i}. Score: {score:.3f}")
+                print("-" * 50)
+                print(doc["page_content"])
+                print("-" * 50)
+        # Visa svar
+        print("\n=== ✨ SVAR ===")
+        print(response_text)
 
 if __name__ == "__main__":
     main()

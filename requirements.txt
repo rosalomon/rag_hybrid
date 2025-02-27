@@ -8,3 +8,6 @@ langchain-text-splitters
 openai
 langchain-openai
 langchain-chroma
+pandas
+openpyxl
+unstructured
